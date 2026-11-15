@@ -1,0 +1,9 @@
+{
+  "controller_sock": "/tmp/sdn_ctrl.sock",
+  "clients":  {"c1": "10.0.0.1", "c2": "10.0.0.2", "c3": "10.0.0.3"},
+  "proxy":    {"ip": "10.0.0.10", "port": 8080, "control_port": 9000},
+  "services": {
+    "web":   {"ip": "10.0.0.21", "port": 8001},
+    "files": {"ip": "10.0.0.22", "port": 8002}
+  }
+}
