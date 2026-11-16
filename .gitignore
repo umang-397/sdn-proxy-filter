@@ -5,4 +5,3 @@ logs/
 .venv/
 venv/
 .pytest_cache/
-topo_batch_fix.patch/
