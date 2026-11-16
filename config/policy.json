@@ -1,7 +1,23 @@
 {
   "default": "allow",
   "rules": [
-    {"client": "10.0.0.2", "service": "files", "keyword": null, "action": "deny"},
-    {"client": "*", "service": "*", "keyword": "secret", "action": "deny"}
+    {
+      "client": "*",
+      "service": "10.0.0.22",
+      "keyword": null,
+      "action": "deny"
+    },
+    {
+      "client": "10.0.0.2",
+      "service": "files",
+      "keyword": null,
+      "action": "deny"
+    },
+    {
+      "client": "*",
+      "service": "*",
+      "keyword": "secret",
+      "action": "deny"
+    }
   ]
 }

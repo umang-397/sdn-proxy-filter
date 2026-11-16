@@ -1,0 +1,13 @@
+PASS c1 can read web
+PASS c2 is denied files by the saved policy
+PASS c3 can read files
+PASS c2 is still denied files
+PASS c3 is now denied files
+PASS c1 web traffic is unaffected (first match wins)
+PASS c2 web traffic still works
+PASS files drop rule is in the switch
+PASS blocked client c1 is cut off
+PASS c2 keeps working
+PASS c3 keeps working
+PASS client drop rule is in the switch
+RESULT: 12 passed, 0 failed

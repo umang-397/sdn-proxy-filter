@@ -1,0 +1,15 @@
+PASS allowed request returns data
+PASS direct bypass fails at the switch
+PASS blocked request gets BLOCKED
+PASS keyword rule blocks
+PASS log shows both permit and block lines
+PASS default drop flow is installed
+PASS allowed client-to-proxy flow is installed
+PASS dynamic BLOCK takes effect in the proxy
+PASS dynamic drop rule reaches the switch
+PASS dynamic ALLOW restores service
+PASS malformed flood is detected
+PASS flooding client is auto-blocked
+PASS switch drop is installed for the flooding client
+PASS legitimate client keeps working during the flood
+PASS client works again after UNBLOCK

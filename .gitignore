@@ -1,6 +1,8 @@
 __pycache__/
 *.py[cod]
-*.log
+logs/
 .DS_Store
 .venv/
 venv/
+.pytest_cache/
+topo_batch_fix.patch/

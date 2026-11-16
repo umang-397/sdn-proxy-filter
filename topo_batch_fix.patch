@@ -1,0 +1,30 @@
+--- /tmp/topo.orig	2026-11-16 15:41:43.734181366 +0000
++++ topology/topo.py	2026-11-16 15:41:43.770018320 +0000
+@@ -345,12 +345,23 @@
+     save_dumpflows(net, "multi_before")
+ 
+     def batch(jobs):
++        # A Mininet host has ONE shell, so host.cmd() must never run twice
++        # at once on the same host. Different hosts run in parallel; the
++        # jobs of one host run one after another inside a single worker.
++        per_host = {}
++        for host, req in jobs:
++            per_host.setdefault(host, []).append(req)
++
++        def run_host(host, reqs):
++            return {(host, req): run_client(net.get(host), req)
++                    for req in reqs}
++
+         results = {}
+-        with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+-            futures = {pool.submit(run_client, net.get(host), req):
+-                       (host, req) for host, req in jobs}
++        with ThreadPoolExecutor(max_workers=len(per_host)) as pool:
++            futures = [pool.submit(run_host, host, reqs)
++                       for host, reqs in per_host.items()]
+             for future in futures:
+-                results[futures[future]] = future.result()
++                results.update(future.result())
+         return results
+ 
+     def show(results):

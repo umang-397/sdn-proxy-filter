@@ -1,0 +1,16 @@
+# 2026-11-16 21:16:15
+ cookie=0x0, duration=13.350s, table=0, n_packets=5, n_bytes=352, priority=100,ip,nw_src=10.0.0.1,nw_dst=10.0.0.10 actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=20, n_bytes=1412, priority=100,ip,nw_src=10.0.0.2,nw_dst=10.0.0.10 actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=15, n_bytes=1060, priority=100,ip,nw_src=10.0.0.3,nw_dst=10.0.0.10 actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=10, n_bytes=724, priority=100,ip,nw_src=10.0.0.10,nw_dst=10.0.0.1 actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=20, n_bytes=1430, priority=100,ip,nw_src=10.0.0.10,nw_dst=10.0.0.2 actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=15, n_bytes=1079, priority=100,ip,nw_src=10.0.0.10,nw_dst=10.0.0.3 actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=25, n_bytes=1745, priority=100,ip,nw_src=10.0.0.10,nw_dst=10.0.0.21 actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=1, n_bytes=74, priority=100,ip,nw_src=10.0.0.10,nw_dst=10.0.0.22 actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=25, n_bytes=1810, priority=100,ip,nw_src=10.0.0.21,nw_dst=10.0.0.10 actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=5, n_bytes=364, priority=100,ip,nw_src=10.0.0.22,nw_dst=10.0.0.10 actions=NORMAL
+ cookie=0x0, duration=6.196s, table=0, n_packets=4, n_bytes=275, priority=200,ip,nw_src=10.0.0.10,nw_dst=10.0.0.22 actions=drop
+ cookie=0x0, duration=5.565s, table=0, n_packets=10, n_bytes=722, priority=200,ip,nw_src=10.0.0.1,nw_dst=10.0.0.10 actions=drop
+ cookie=0x0, duration=13.350s, table=0, n_packets=12, n_bytes=504, priority=100,arp actions=NORMAL
+ cookie=0x0, duration=13.350s, table=0, n_packets=36, n_bytes=3016, priority=0 actions=drop
+
