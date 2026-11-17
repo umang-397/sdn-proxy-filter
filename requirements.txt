@@ -1,2 +1,4 @@
-ryu
-matplotlib
+ryu==4.34
+matplotlib>=3.5
+# Ryu 4.34 may fail on newer Python/eventlet combinations. If import fails:
+#   pip3 install eventlet==0.30.2
