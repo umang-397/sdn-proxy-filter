@@ -19,13 +19,15 @@ python3 tests/check_expected.py results/local_smoke.txt \
     tests/expected/local_smoke.txt
 ```
 
-The test starts two services, the proxy, and a fake controller, then runs 24
+The test starts two services, the proxy, and a fake controller, then runs 25
 checks. Expected output is committed as `tests/expected/local_smoke.txt`; the
 last line is `FAILED: 0`.
 
 Covered:
 
 * allowed data, keyword deny, malformed request, unknown service,
+* `BLOCK nosuchservice` returns `ERROR unknown service` and does not change the
+  saved policy,
 * 1 MB response integrity,
 * `BLOCK files` returns `BLOCKED`, controller receives `DROP`,
 * new controller boot id -> proxy re-sends drop rules,
@@ -42,10 +44,15 @@ Python) it uses `controller_tcp`. The proxy code path is the same.
 
 ## 2. Mininet acceptance tests
 
-Prerequisites: controller running, `sudo mn -c`, policy reset
-(`git checkout -- config/policy.json`). Each command is a separate run. The
-scripted modes exit automatically; add `--cli` to keep the Mininet prompt open
-for inspection.
+Prerequisites: controller running in `~/ryu-env`, `sudo mn -c`, policy reset
+(`git checkout -- config/policy.json`). Each command is a separate run, with a
+fresh controller terminal. The scripted modes exit automatically; add `--cli`
+to keep the Mininet prompt open for inspection.
+
+Inside `mininet>`, quote service names: write `BLOCK 'files'`, not
+`BLOCK files`. The Mininet CLI replaces a token that matches a host name with
+that host's IP address, so the unquoted form arrives at `ctl.py` as
+`BLOCK 10.0.0.22` and is rejected.
 
 ```bash
 sudo python3 topology/topo.py --test basic
@@ -108,24 +115,29 @@ python3 tests/check_expected.py results/mininet_hard.txt \
 
 The mid-transfer case shows the interaction between layers:
 
-* the in-flight connection may end with a partial body or a timeout because the
-  priority-200 `proxy -> web` rule cuts the established flow,
+* a policy change cuts an in-flight download: the priority-200
+  `proxy -> web` rule removes the established flow, so the transfer ends with a
+  partial body or a timeout,
 * every new request is denied by the proxy immediately (`BLOCKED rule 1`),
 * c3 is also affected while the service is globally blocked (expected),
-* `ALLOW web` restores both the proxy decision and the switch path.
+* `ALLOW 'web'` restores both the proxy decision and the switch path.
 
-### Controller / switch restart check (manual, plan point 4)
+### MR01: controller / switch restart check (manual)
 
 In an interactive run (`sudo python3 topology/topo.py`), with the Ryu controller
 running in another terminal:
 
 ```bash
-proxy python3 app/ctl.py BLOCK files
-sh ovs-ofctl -O OpenFlow13 dump-flows s1       # priority=200 proxy -> files
+proxy python3 app/ctl.py BLOCK 'files'
+sh ovs-ofctl -O OpenFlow13 dump-flows s1 | tee results/evidence/restart_before.txt
 # stop Ryu (Ctrl-C), start it again, wait ~2 s (proxy PING interval)
-sh ovs-ofctl -O OpenFlow13 dump-flows s1       # rule is re-pushed
-proxy python3 app/ctl.py ALLOW files
+sh ovs-ofctl -O OpenFlow13 dump-flows s1 | tee results/evidence/restart_after_ryu.txt
 ```
+
+Expected result: both dumps contain
+`priority=200,ip,nw_src=10.0.0.10,nw_dst=10.0.0.22 actions=drop` (the proxy ->
+files drop). The rule is re-pushed automatically because the proxy sees a new
+controller boot id.
 
 To test the switch-reconnect path, delete the controller from the switch and
 set it again:
@@ -133,10 +145,18 @@ set it again:
 ```bash
 sh ovs-vsctl del-controller s1
 sh ovs-vsctl set-controller s1 tcp:127.0.0.1:6653
-sh ovs-ofctl -O OpenFlow13 dump-flows s1       # default + dynamic rules return
+sh sleep 5
+sh ovs-ofctl -O OpenFlow13 dump-flows s1 | tee results/evidence/restart_after_switch.txt
 ```
 
-Record the terminal transcript/screenshot in `results/screenshots/` and the
+Expected result: the same priority-200 `nw_src=10.0.0.10,nw_dst=10.0.0.22`
+drop is present after the switch reconnects. Finish with:
+
+```bash
+proxy python3 app/ctl.py ALLOW 'files'
+```
+
+Keep the terminal transcript/screenshot in `results/screenshots/` and the
 before/after dumps in `results/evidence/`.
 
 ## 4. Performance run
@@ -170,8 +190,9 @@ sudo mn -c
 sudo python3 topology/topo.py --test basic
 ```
 
-The only environment-specific step is the eventlet pin for Ryu on newer
-Python versions (`pip3 install eventlet==0.30.2`).
+The only environment-specific step is Ryu: use the `uv` + Python 3.9 recipe in
+the README (`~/ryu-env`), because plain `pip3 install ryu` fails on Ubuntu
+26.04 / Python 3.14.
 
 ## 6. Evidence checklist
 
@@ -183,4 +204,6 @@ Python versions (`pip3 install eventlet==0.30.2`).
 * benchmark CSVs + summary,
 * `latency.png`, `throughput.png`, `policy_change.png`, `summary.md`,
 * `evidence/dumpflows_*.txt`, `evidence/proxy_*.log`, `evidence/hard_*.txt`,
-* `screenshots/` for terminal screenshots.
+* `evidence/restart_before.txt`, `restart_after_ryu.txt`,
+  `restart_after_switch.txt` (MR01),
+* `screenshots/01_...` to `screenshots/07_...` (numbered stages).

@@ -1,6 +1,7 @@
 __pycache__/
-*.py[cod]
-logs/
+*.pyc
+logs/*
+!logs/.gitkeep
 .DS_Store
 .venv/
 venv/

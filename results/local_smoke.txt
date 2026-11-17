@@ -2,6 +2,7 @@ PASS allowed request returns data
 PASS keyword rule blocks
 PASS malformed request rejected
 PASS unknown service rejected
+PASS BLOCK unknown service rejected and policy unchanged
 PASS large response complete
 PASS BLOCK files accepted
 PASS controller was told to DROP

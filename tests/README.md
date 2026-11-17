@@ -3,7 +3,7 @@
 | Command | Runs where | Expected |
 |---|---|---|
 | `python3 tests/test_policy.py` | anywhere | 6 tests, `OK` |
-| `python3 tests/local_smoke.py` | anywhere | 24 PASS, `FAILED: 0` |
+| `python3 tests/local_smoke.py` | anywhere | 25 PASS, `FAILED: 0` |
 | `python3 tests/local_benchmark.py` | anywhere | writes `results/localhost/` |
 | `sudo python3 topology/topo.py --test basic` | Ubuntu + Mininet | matches `expected/mininet_basic.txt` |
 | `sudo python3 topology/topo.py --test multi` | Ubuntu + Mininet | matches `expected/mininet_multi.txt` |

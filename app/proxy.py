@@ -366,6 +366,8 @@ class Proxy:
             ms, acks = self.sync()
             return "OK sync after %.1f ms, controller: %s" % (
                 ms, acks or "no change")
+        if cmd in ("BLOCK", "ALLOW") and arg not in self.services:
+            return "ERROR unknown service"
         table = {"BLOCK": self.policy.block_service,
                  "ALLOW": self.policy.allow_service,
                  "BLOCKCLIENT": self.policy.block_client,

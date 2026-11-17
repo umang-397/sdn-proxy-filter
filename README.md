@@ -42,24 +42,46 @@ docs/       architecture, implementation, testing, results, viva notes
 logs/       runtime logs (git-ignored)
 ```
 
-## Setup (Ubuntu 20.04/22.04)
+## Setup (Ubuntu, tested on 26.04 with Python 3.14)
+
+System packages for Mininet, the proxy and the tests:
 
 ```bash
 sudo apt update
 sudo apt install -y mininet openvswitch-switch python3-pip netcat-openbsd
-pip3 install -r requirements.txt
-# If Ryu fails on import with newer Python/eventlet:
-pip3 install eventlet==0.30.2
 ```
 
-Mininet does not run on macOS or native Windows. Use an Ubuntu VM for every
-`topology/topo.py` command.
+Ryu needs its own Python 3.9 environment; on Ubuntu 26.04 the plain
+`pip3 install ryu` line fails. This is the recipe that worked:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.bashrc
+uv venv --python 3.9 ~/ryu-env && source ~/ryu-env/bin/activate
+uv pip install pbr "setuptools==65.5.1" wheel
+uv pip install eventlet==0.30.2 msgpack netaddr oslo.config routes six webob tinyrpc ovs packaging
+uv pip install --no-build-isolation --no-deps ryu==4.34
+ryu-manager --version                  # 4.34
+deactivate
+```
+
+The actual session is captured in `results/screenshots/00_ryu_install.png`.
+
+Which Python runs what:
+
+* **Controller**: `ryu-manager` from `~/ryu-env` (Python 3.9).
+* **Mininet, proxy, services, tests and `results/plot.py`**: the system Python,
+  with `sudo` where the commands below use it.
+* **Plots**: install `matplotlib` for the system Python
+  (`sudo apt install python3-matplotlib` or `pip3 install matplotlib`).
+
+Mininet does not run on macOS or native Windows. Use the Ubuntu machine for
+every `topology/topo.py` command.
 
 ## Quick checks without Mininet
 
 ```bash
 python3 tests/test_policy.py       # 6 unit tests, expect OK
-python3 tests/local_smoke.py       # 24 checks, expect FAILED: 0
+python3 tests/local_smoke.py       # 25 checks, expect FAILED: 0
 python3 tests/local_smoke.py | tee results/local_smoke.txt
 python3 tests/check_expected.py results/local_smoke.txt tests/expected/local_smoke.txt
 ```
@@ -90,44 +112,55 @@ c1 python3 app/client.py --req "GET web/index"                       # allowed
 c1 python3 app/client.py --host 10.0.0.21 --port 8001 --req "GET /x" --timeout 3
                                                                      # bypass fails
 c2 python3 app/client.py --req "GET files/index"                    # denied (policy)
-proxy python3 app/ctl.py BLOCK web                                  # live change
-proxy python3 app/ctl.py ALLOW web
+proxy python3 app/ctl.py BLOCK 'web'                                # live change
+proxy python3 app/ctl.py ALLOW 'web'
 proxy python3 app/ctl.py BLOCKCLIENT 10.0.0.1
 proxy python3 app/ctl.py UNBLOCK 10.0.0.1
 proxy python3 app/ctl.py STATS
 sh ovs-ofctl -O OpenFlow13 dump-flows s1
 ```
 
+**Quote service names inside `mininet>`.** The Mininet CLI replaces a token that
+matches a host name with that host's IP address, so `BLOCK files` would reach
+`ctl.py` as `BLOCK 10.0.0.22` and fail. Write `BLOCK 'files'` instead.
+
 Runtime changes are written to `config/policy.json` (first match wins) and
 pushed to the controller over `/tmp/sdn_ctrl.sock`. If the controller restarts,
 the proxy notices the new boot id and re-pushes every drop rule. If the switch
 reconnects, the controller re-installs its known drop rules.
 
-Before a fresh demo/test run, reset the saved policy so the expected output is
-reproducible:
+Before every demo/test run, reset the saved policy and the Mininet state, and
+restart the controller terminal:
 
 ```bash
+# Terminal 1: Ctrl-C the old Ryu, then start it again
+cd ~/sdn-proxy-filter
+source ~/ryu-env/bin/activate
+ryu-manager --ofp-tcp-listen-port 6653 controller/filter_controller.py
+
+# Terminal 2: before each run
 git checkout -- config/policy.json
+sudo mn -c
 ```
 
 ## Scripted scenarios
 
-Each command must be a separate run (restart the controller and run `sudo mn -c`
-between runs). Scripted modes run and exit automatically; add `--cli` if you
-want to inspect the network afterwards:
+Each command must be a separate run: restart Ryu, run `sudo mn -c`, then run
+one command. Scripted modes run and exit automatically; add `--cli` if you want
+to inspect the network afterwards.
 
-```bash
-sudo python3 topology/topo.py --demo                     # multi-client policy demo
-sudo python3 topology/topo.py --test basic               # acceptance tests
-sudo python3 topology/topo.py --test multi               # multi-client checks
-sudo python3 topology/topo.py --hard                     # bypass/flood/policy/crash
-sudo python3 topology/topo.py --policy-timing --cycles 20
-sudo python3 topology/topo.py --test basic --cli         # keep the CLI open
-```
+| Command | What it runs | Report | Check |
+|---|---|---|---|
+| `sudo python3 topology/topo.py --test basic` | acceptance tests | `results/mininet_basic.txt` | 15 PASS |
+| `sudo python3 topology/topo.py --test multi` | three concurrent clients and live policy changes | `results/mininet_multi.txt` | 12 PASS |
+| `sudo python3 topology/topo.py --hard` | bypass, flood, mid-transfer policy change, proxy crash | `results/mininet_hard.txt` | 16 PASS |
+| `sudo python3 topology/topo.py --policy-timing --cycles 20` | 20 `BLOCK`/`ALLOW` pairs | `results/mininet_policy_timing.txt` | 40 measurements |
+| `sudo python3 topology/topo.py --bench proxy` | 1/5/10 clients, index and 1 MB responses | `results/benchmark_proxy*.csv` | 5 repeats |
+| `sudo python3 topology/topo.py --bench direct` | same load without the proxy | `results/benchmark_direct*.csv` | 5 repeats |
+| `sudo python3 topology/topo.py --demo` | multi-client policy demo | console only | - |
+| `sudo python3 topology/topo.py --test basic --cli` | basic tests, keep the CLI open | as above | 15 PASS |
 
-Reports land in `results/mininet_basic.txt`, `mininet_multi.txt`,
-`mininet_hard.txt` and `mininet_policy_timing.txt`. Compare them with the
-committed expected output:
+Compare the reports with the committed expected output:
 
 ```bash
 python3 tests/check_expected.py results/mininet_basic.txt tests/expected/mininet_basic.txt
@@ -203,7 +236,8 @@ python3 tests/local_benchmark.py
 python3 results/plot.py --dir results/localhost --out results/localhost
 ```
 
-Use the Mininet numbers in the report and viva, not the localhost sanity data.
+Use the Mininet numbers in the report and viva. `results/localhost/` is only a
+pipeline check and must not be presented as the performance result.
 
 ## Request format and policy
 
@@ -212,7 +246,8 @@ Request: `GET <service>/<resource>`. Replies: data, `BLOCKED <rule>`, or
 `client` (IP or `*`), `service` (name or `*`), `keyword` (substring or null),
 `action` (`allow`/`deny`); otherwise `default` applies. Runtime commands are
 `BLOCK`, `ALLOW`, `BLOCKCLIENT`, `ALLOWCLIENT`, `UNBLOCK`, `RELOAD`, `SHOW`,
-`STATS` and `SYNC`.
+`STATS` and `SYNC`. `BLOCK`/`ALLOW` reject a service name that is not in
+`config/network.json` with `ERROR unknown service`.
 
 Controller priorities: `200` dynamic drop, `100` allowed pair/ARP, `0` default
 drop.
@@ -230,4 +265,4 @@ drop.
 
 * UMANG VIJAY: proxy/services/client (`app/`)
 * SHREYAS ARUN: controller + topology
-* SUMANTH MANJUNATH SHASTRI: tests/, results/, STP, viva point of contact
+* SUMANTH MANJUNATH SHASTRI: tests/, results/, viva point of contact (STP studied for the report)

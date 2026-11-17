@@ -46,6 +46,15 @@ else relay response bytes, log permit
 Every decision writes
 `time,client,service,resource,action,reason` to `logs/proxy.log`.
 
+### Control-side validation
+
+`BLOCK` and `ALLOW` accept only a service name that exists in
+`config/network.json`. `BLOCK nosuchservice` returns `ERROR unknown service`
+without changing the policy, so a typo cannot silently create a rule that never
+matches. Tests call the proxy directly; inside the Mininet CLI the service name
+must be quoted (`BLOCK 'files'`) because the CLI otherwise substitutes the host
+IP address.
+
 ### Automatic blocking
 
 Two sliding windows per source IP:

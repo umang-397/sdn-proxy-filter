@@ -2,6 +2,8 @@
 
 ## Two layers, two jobs
 
+![Architecture diagram: clients, switch, proxy, two services, controller and the two enforcement points](architecture.svg)
+
 ```mermaid
 flowchart LR
     c1[c1 10.0.0.1] -->|TCP 8080| s1

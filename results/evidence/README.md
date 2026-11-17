@@ -1,7 +1,7 @@
 # Evidence
 
-Created by `topology/topo.py` during scripted runs. Expected contents after the
-VM run:
+Created by `topology/topo.py` during the committed scripted runs, or saved by
+hand during the MR01 restart check:
 
 | File | Produced by |
 |---|---|
@@ -15,6 +15,7 @@ VM run:
 | `dumpflows_hard_flood.txt` | `--hard` automatic block |
 | `hard_stats_before_crash.txt` | `--hard` proxy crash |
 | `proxy_basic.log`, `proxy_multi.log`, `proxy_hard.log` | structured proxy logs copied after each scenario |
+| `restart_before.txt`, `restart_after_ryu.txt`, `restart_after_switch.txt` | MR01: dump-flows before, after a controller restart, and after a switch reconnect |
 
 Keep the files; the report should cite the timestamps and flow rules inside
 them. Do not edit them after the run.

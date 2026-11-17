@@ -201,6 +201,11 @@ check("allowed request returns data", "content of /index" in req("GET web/index"
 check("keyword rule blocks", req("GET web/secret-plan").startswith("BLOCKED"))
 check("malformed request rejected", req("hello").startswith("ERROR malformed"))
 check("unknown service rejected", req("GET nope/x").startswith("ERROR"))
+rules_before = json.loads(ctl("SHOW"))["rules"]
+unknown = ctl("BLOCK nosuchservice")
+rules_after = json.loads(ctl("SHOW"))["rules"]
+check("BLOCK unknown service rejected and policy unchanged",
+      unknown == "ERROR unknown service" and rules_before == rules_after)
 check("large response complete", len(req("GET web/large")) == 1_000_000)
 r = ctl("BLOCK files")
 check("BLOCK files accepted", r.startswith("OK"))

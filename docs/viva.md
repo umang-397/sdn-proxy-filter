@@ -6,7 +6,9 @@ They enforce different things. The proxy understands the application request
 (`GET service/resource`), so it can apply keyword/client/service policy and log
 every permit/block. The switch cannot read that. The switch can stop a client
 from bypassing the proxy by connecting directly to a service, which the proxy
-cannot prevent. Together: app-layer policy + network-layer enforcement.
+cannot prevent. Together: app-layer policy + network-layer enforcement. Neither
+is enough alone: without the switch a client bypasses the proxy, and without the
+proxy the switch cannot tell `web/index` from `web/secret-plan`.
 
 ## 2. How does a request flow?
 
@@ -69,9 +71,11 @@ same script, so the only difference is the proxy hop.
 
 Latency increases because every request passes through one extra process and
 TCP connection; throughput drops for the same reason and because policy/logging
-run per request. Large responses are dominated by data transfer, so the
-relative overhead is smaller than for small responses. Real numbers must come
-from the Mininet VM; the repo's `results/localhost/` is only a pipeline check.
+run per request. The measured Mininet overhead is +107% to +196% for small
+`index` responses but only +10% to +65% for 1 MB `large` responses: on a tiny
+request the extra hop and parsing are a large share of the total, while on a
+large response the transfer dominates. Throughput is lower through the proxy for
+the same reason. The repo's `results/localhost/` is only a pipeline check.
 
 ## 10. How do you know blocked content stays blocked?
 
@@ -113,3 +117,22 @@ thread because sockets have timeouts.
 * per-user identities instead of source IP,
 * a real HTTP parser/header policy,
 * smarter rate limiting (token bucket plus penalties).
+
+## 15. What was the `batch()` defect?
+
+The multi-client test originally sent one request to each host in parallel with
+`host.cmd()`. A Mininet host has **one shell**, so two commands on the same host
+cannot run at once: the second call interleaves with the first, output is lost,
+and the test result becomes flaky. The fix groups jobs by host: one worker per
+host runs that host's commands one after another, while different hosts still
+run in parallel. That is why the test now gets three reliable answers instead
+of racing on one shell.
+
+## 16. Why quote service names in the Mininet CLI?
+
+The Mininet CLI substitutes a token that matches a host name with that host's IP
+address before running the command. `BLOCK files` therefore reaches `ctl.py` as
+`BLOCK 10.0.0.22`; the control handler now rejects unknown service names, so the
+command fails. Quoting (`BLOCK 'files'`) prevents the substitution and keeps the
+service name as a name. Scripted tests call the proxy directly and are not
+affected.
