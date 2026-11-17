@@ -8,16 +8,25 @@ service's answer is relayed back to the client.
 
 Runtime control (only reachable on 127.0.0.1 of the proxy host), see ctl.py:
   BLOCK <service> | ALLOW <service> | BLOCKCLIENT <ip> | ALLOWCLIENT <ip>
-  RELOAD | SHOW | STATS
+  UNBLOCK <ip> | RELOAD | SHOW | STATS | SYNC
+
 Every policy change is pushed to the SDN controller over a unix socket so the
-controller installs / removes a matching drop rule in the switch.
+controller installs / removes a matching drop rule in the switch.  The proxy
+also watches controller restarts (PING with a boot id) and pushes the whole
+set again if the controller came back.
+
+Automatic response to abuse: a client that sends too many malformed requests,
+or too many requests per second, is blocked in the proxy *and* in the switch
+for a configurable number of seconds (see config/network.json).
 """
 import argparse
 import json
+import os
 import re
 import socket
 import threading
 import time
+from collections import defaultdict, deque
 
 from policy import Policy
 
@@ -32,40 +41,115 @@ class Proxy:
         self.policy = Policy(a.policy)
         self.pip = self.cfg["proxy"]["ip"]
         self.services = self.cfg["services"]
-        self.stats = {"permitted": 0, "blocked": 0, "errors": 0}
+
+        # ------------------------------------------------ statistics state
+        self.stats_file = self.cfg["proxy"].get("stats_file", "logs/stats.json")
+        self.stats = self.load_stats()
         self.stats_lock = threading.Lock()
         self.log_lock = threading.Lock()
-        self.sync_lock = threading.Lock()
-        self.synced = set()          # (src, dst) drops already pushed to controller
+
+        # ------------------------------------------------ controller link
+        self.sync_lock = threading.RLock()
+        self.synced = set()          # (src, dst) drops already pushed
+        self.controller_gen = None   # boot id of the controller we last saw
+        self.sync_interval = float(
+            self.cfg["proxy"].get("sync_interval_s", 2.0))
+
+        # ------------------------------------------------- automatic block
+        ab = self.cfg["proxy"].get("auto_block", {})
+        self.ab_enabled = not a.no_auto_block
+        self.ab_malformed = (a.auto_block_malformed if a.auto_block_malformed
+                             is not None else ab.get("malformed_threshold", 5))
+        self.ab_rate = (a.auto_block_rate if a.auto_block_rate is not None
+                        else ab.get("rate_threshold", 200))
+        self.ab_seconds = (a.auto_block_seconds if a.auto_block_seconds
+                           is not None else ab.get("block_seconds", 30))
+        self.ab_malformed_window = float(ab.get("malformed_window_s", 10.0))
+        self.ab_rate_window = float(ab.get("rate_window_s", 1.0))
+        if not self.ab_enabled:
+            self.ab_malformed = self.ab_rate = 0
+        self.requests = defaultdict(deque)
+        self.faults = defaultdict(deque)
+        self.ab_lock = threading.Lock()
+
+        # Make the controller match the saved policy, even if it kept rules
+        # from an earlier run.  It is safe to call this when it is offline.
+        self.notify("CLEAR")
+        with self.sync_lock:
+            self.synced.clear()
         self.sync()
+
+    # ------------------------------------------------------------ stats
+    def load_stats(self):
+        base = {"permitted": 0, "blocked": 0, "errors": 0, "auto_blocks": 0}
+        try:
+            with open(self.stats_file) as f:
+                saved = json.load(f)
+            for key in base:
+                base[key] = int(saved.get(key, 0))
+        except (OSError, ValueError, TypeError):
+            pass
+        return base
+
+    def _save_stats(self):
+        folder = os.path.dirname(self.stats_file)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+        tmp = self.stats_file + ".tmp"
+        try:
+            with open(tmp, "w") as f:
+                json.dump(self.stats, f, indent=2)
+            os.replace(tmp, self.stats_file)
+        except OSError:
+            pass
 
     # ------------------------------------------------------------ logging
     def log(self, client, service, resource, action, reason):
         key = {"permit": "permitted", "block": "blocked"}.get(action, "errors")
         with self.stats_lock:
             self.stats[key] += 1
+            self._save_stats()
+        self.event(client, service, resource, action, reason)
+
+    def event(self, client, service, resource, action, reason):
+        """Write a CSV log line without changing the request counters."""
         line = "%s,%s,%s,%s,%s,%s\n" % (
             time.strftime("%Y-%m-%d %H:%M:%S"), client, service,
-            resource.replace(",", "_")[:60], action, reason)
-        with self.log_lock, open(self.args.log, "a") as f:
-            f.write(line)
+            str(resource).replace(",", "_")[:60], action, reason)
+        with self.log_lock:
+            try:
+                folder = os.path.dirname(self.args.log)
+                if folder:
+                    os.makedirs(folder, exist_ok=True)
+                with open(self.args.log, "a") as f:
+                    f.write(line)
+            except OSError:
+                pass
 
     # --------------------------------------------------- controller link
-    def notify(self, cmd):
+    def notify(self, cmd, timeout=2):
         try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            s.settimeout(2)
-            s.connect(self.cfg["controller_sock"])
+            tcp = self.cfg.get("controller_tcp")
+            if tcp:
+                s = socket.create_connection((tcp["host"], int(tcp["port"])),
+                                             timeout=timeout)
+            else:
+                s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                s.settimeout(timeout)
+                s.connect(self.cfg["controller_sock"])
+            s.settimeout(timeout)
             s.sendall((cmd + "\n").encode())
-            reply = s.recv(200).decode().strip()
+            reply = s.recv(200).decode(errors="replace").strip()
             s.close()
             return reply
-        except OSError as e:
+        except (OSError, AttributeError) as e:
             return "ERR " + str(e)
 
     def desired_drops(self):
         want = set()
-        for r in self.policy.rules:
+        with self.policy.lock:
+            rules = list(self.policy.rules)
+        for r in rules:
             if r["action"] != "deny" or r.get("keyword"):
                 continue
             c, s = r.get("client", "*"), r.get("service", "*")
@@ -73,6 +157,10 @@ class Proxy:
                 want.add((self.pip, self.services[s]["ip"]))   # proxy -> service
             elif s == "*" and c != "*":
                 want.add((c, self.pip))                         # client -> proxy
+        # Automatic blocks are temporary policy entries; drop them in the
+        # switch too so a flooding client cannot even reach the proxy.
+        for client in self.policy.active_auto_blocks():
+            want.add((client, self.pip))
         return want
 
     def sync(self):
@@ -93,6 +181,84 @@ class Proxy:
                     self.synced.discard(p)
             return (time.time() - t0) * 1000, acks
 
+    def needs_sync(self):
+        with self.sync_lock:
+            return self.desired_drops() != self.synced
+
+    # ------------------------------------------------- automatic blocking
+    def _count_in_window(self, store, client, window):
+        now = time.time()
+        with self.ab_lock:
+            q = store[client]
+            q.append(now)
+            while q and q[0] < now - window:
+                q.popleft()
+            return len(q)
+
+    def clear_client_counters(self, client):
+        with self.ab_lock:
+            self.requests.pop(client, None)
+            self.faults.pop(client, None)
+
+    def auto_block_client(self, client, reason):
+        if self.policy.auto_block(client, self.ab_seconds, reason):
+            with self.stats_lock:
+                self.stats["auto_blocks"] += 1
+                self._save_stats()
+            self.event(client, "-", "-", "auto-block", reason)
+            self.sync()
+            return True
+        return False
+
+    def note_request(self, client):
+        """Rate-limit every request (valid or not). Returns a reason if blocked."""
+        if not self.ab_enabled or self.ab_rate <= 0:
+            return None
+        n = self._count_in_window(self.requests, client, self.ab_rate_window)
+        if n >= self.ab_rate:
+            reason = "auto-block: rate limit (%d req/%.0fs)" % (
+                n, self.ab_rate_window)
+            self.auto_block_client(client, reason)
+            return self.policy.auto_block_reason(client) or reason
+        return None
+
+    def note_malformed(self, client):
+        if not self.ab_enabled or self.ab_malformed <= 0:
+            return None
+        n = self._count_in_window(self.faults, client,
+                                  self.ab_malformed_window)
+        if n >= self.ab_malformed:
+            reason = "auto-block: malformed flood (%d in %.0fs)" % (
+                n, self.ab_malformed_window)
+            self.auto_block_client(client, reason)
+            return self.policy.auto_block_reason(client) or reason
+        return None
+
+    def maintenance_loop(self):
+        """Expire automatic blocks, detect controller restart, retry sync."""
+        interval = max(self.sync_interval, 0.05)
+        while True:
+            time.sleep(interval)
+            released = self.policy.expire_auto_blocks()
+            for client in released:
+                self.event(client, "-", "-", "unblock",
+                           "automatic block expired")
+            reply = self.notify("PING", timeout=min(interval, 0.5))
+            if not reply.startswith("OK"):
+                # Controller offline: keep the local policy working and retry
+                # on the next tick instead of blocking on every drop rule.
+                continue
+            gen = reply[3:].strip()
+            if gen != self.controller_gen:
+                # New controller process: its drop table is empty.
+                self.controller_gen = gen
+                with self.sync_lock:
+                    self.synced.clear()
+                self.sync()
+                continue
+            if released or self.needs_sync():
+                self.sync()
+
     # ------------------------------------------------------ client side
     @staticmethod
     def reply(conn, text):
@@ -101,6 +267,10 @@ class Proxy:
         except OSError:
             pass
 
+    def deny(self, conn, client, service, resource, reason):
+        self.reply(conn, "BLOCKED %s\n" % reason)
+        self.log(client, service, resource, "block", reason)
+
     def handle(self, conn, addr):
         client = addr[0]
         conn.settimeout(5)
@@ -108,6 +278,14 @@ class Proxy:
             if self.policy.changed_on_disk():       # policy file edited by hand
                 self.policy.load()
                 self.sync()
+            reason = self.policy.auto_block_reason(client)
+            if reason:
+                self.deny(conn, client, "-", "-", reason)
+                return
+            reason = self.note_request(client)
+            if reason:
+                self.deny(conn, client, "-", "-", reason)
+                return
             buf = b""
             while b"\n" not in buf and len(buf) < 1024:
                 chunk = conn.recv(256)
@@ -117,14 +295,17 @@ class Proxy:
             line = buf.split(b"\n")[0].decode(errors="replace").strip()
             m = REQ.match(line)
             if not m:
+                reason = self.note_malformed(client)
+                if reason:
+                    self.deny(conn, client, "-", line, reason)
+                    return
                 self.reply(conn, "ERROR malformed request\n")
                 self.log(client, "-", line, "error", "malformed")
                 return
             service, resource = m.groups()
             action, reason = self.policy.decide(client, service, resource)
             if action == "deny":
-                self.reply(conn, "BLOCKED %s\n" % reason)
-                self.log(client, service, resource, "block", reason)
+                self.deny(conn, client, service, resource, reason)
                 return
             svc = self.services.get(service)
             if not svc:
@@ -159,13 +340,38 @@ class Proxy:
             return "ERR empty"
         cmd, arg = parts[0].upper(), (parts[1] if len(parts) > 1 else None)
         if cmd == "STATS":
-            return json.dumps(self.stats)
+            with self.stats_lock:
+                data = dict(self.stats)
+            active = self.policy.active_auto_blocks()
+            now = time.time()
+            data["active_auto_blocks"] = {
+                c: {"seconds_left": round(i["until"] - now, 1),
+                    "reason": i["reason"]}
+                for c, i in active.items()}
+            return json.dumps(data)
         if cmd == "SHOW":
-            return json.dumps({"default": self.policy.default, "rules": self.policy.rules})
+            with self.policy.lock:
+                shown = {"default": self.policy.default,
+                         "rules": list(self.policy.rules)}
+            shown["auto_blocks"] = self.policy.active_auto_blocks()
+            return json.dumps(shown)
+        if cmd == "UNBLOCK" and arg:
+            removed = self.policy.clear_auto_block(arg)
+            # Forget the burst as well, otherwise the next request would
+            # immediately trip the same limit again.
+            self.clear_client_counters(arg)
+            self.sync()
+            return "OK %s" % ("auto-block removed" if removed else "not blocked")
+        if cmd == "SYNC":
+            ms, acks = self.sync()
+            return "OK sync after %.1f ms, controller: %s" % (
+                ms, acks or "no change")
         if cmd in ("BLOCK", "ALLOW") and arg not in self.services:
             return "ERROR unknown service"
-        table = {"BLOCK": self.policy.block_service, "ALLOW": self.policy.allow_service,
-                 "BLOCKCLIENT": self.policy.block_client, "ALLOWCLIENT": self.policy.allow_client}
+        table = {"BLOCK": self.policy.block_service,
+                 "ALLOW": self.policy.allow_service,
+                 "BLOCKCLIENT": self.policy.block_client,
+                 "ALLOWCLIENT": self.policy.allow_client}
         if cmd in table and arg:
             table[cmd](arg)
         elif cmd == "RELOAD":
@@ -185,7 +391,7 @@ class Proxy:
             c, _ = s.accept()
             try:
                 c.settimeout(3)
-                line = c.recv(200).decode().strip()
+                line = c.recv(200).decode(errors="replace").strip()
                 c.sendall((self.command(line) + "\n").encode())
             except OSError:
                 pass
@@ -194,14 +400,17 @@ class Proxy:
 
     def serve(self):
         threading.Thread(target=self.control_loop, daemon=True).start()
+        threading.Thread(target=self.maintenance_loop, daemon=True).start()
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((self.args.listen, self.args.port))
         s.listen(128)
-        print("proxy listening on %s:%d" % (self.args.listen, self.args.port), flush=True)
+        print("proxy listening on %s:%d" % (self.args.listen, self.args.port),
+              flush=True)
         while True:
             conn, addr = s.accept()
-            threading.Thread(target=self.handle, args=(conn, addr), daemon=True).start()
+            threading.Thread(target=self.handle, args=(conn, addr),
+                             daemon=True).start()
 
 
 def main():
@@ -212,6 +421,14 @@ def main():
     ap.add_argument("--listen", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--ctl-port", type=int, default=9000)
+    ap.add_argument("--auto-block-malformed", type=int, default=None,
+                    help="malformed requests per window before a block (0=off)")
+    ap.add_argument("--auto-block-rate", type=int, default=None,
+                    help="requests per window before a block (0=off)")
+    ap.add_argument("--auto-block-seconds", type=int, default=None,
+                    help="how long an automatic block lasts")
+    ap.add_argument("--no-auto-block", action="store_true",
+                    help="disable automatic blocking (used by benchmarks)")
     Proxy(ap.parse_args()).serve()
 
 

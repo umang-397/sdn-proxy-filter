@@ -1,2 +1,12 @@
-ryu
-matplotlib
+# Ryu runs in a separate Python 3.9 environment (see README "Setup").
+# On Ubuntu 26.04 / Python 3.14 the plain `pip3 install ryu` fails. The recipe
+# that worked is:
+#   uv venv --python 3.9 ~/ryu-env && source ~/ryu-env/bin/activate
+#   uv pip install pbr "setuptools==65.5.1" wheel
+#   uv pip install eventlet==0.30.2 msgpack netaddr oslo.config routes six webob tinyrpc ovs packaging
+#   uv pip install --no-build-isolation --no-deps ryu==4.34
+ryu==4.34
+eventlet==0.30.2
+
+# Used by results/plot.py with the system Python (not inside ~/ryu-env).
+matplotlib>=3.5
