@@ -1,7 +1,21 @@
 {
   "controller_sock": "/tmp/sdn_ctrl.sock",
+  "controller_tcp": null,
   "clients":  {"c1": "10.0.0.1", "c2": "10.0.0.2", "c3": "10.0.0.3"},
-  "proxy":    {"ip": "10.0.0.10", "port": 8080, "control_port": 9000},
+  "proxy": {
+    "ip": "10.0.0.10",
+    "port": 8080,
+    "control_port": 9000,
+    "stats_file": "logs/stats.json",
+    "sync_interval_s": 2.0,
+    "auto_block": {
+      "malformed_threshold": 5,
+      "malformed_window_s": 10.0,
+      "rate_threshold": 200,
+      "rate_window_s": 1.0,
+      "block_seconds": 30
+    }
+  },
   "services": {
     "web":   {"ip": "10.0.0.21", "port": 8001},
     "files": {"ip": "10.0.0.22", "port": 8002}

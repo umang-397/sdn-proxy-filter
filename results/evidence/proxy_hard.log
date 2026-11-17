@@ -1,0 +1,19 @@
+2026-11-16 21:17:48,10.0.0.3,web,index,permit,default
+2026-11-16 21:17:48,10.0.0.1,-,MALFORMED,error,malformed
+2026-11-16 21:17:48,10.0.0.1,-,MALFORMED,error,malformed
+2026-11-16 21:17:48,10.0.0.1,-,MALFORMED,error,malformed
+2026-11-16 21:17:48,10.0.0.1,-,-,auto-block,auto-block: malformed flood (5 in 10s)
+2026-11-16 21:17:48,10.0.0.1,-,MALFORMED,error,malformed
+2026-11-16 21:17:48,10.0.0.1,-,-,block,auto-block: malformed flood (5 in 10s)
+2026-11-16 21:17:48,10.0.0.1,-,-,block,auto-block: malformed flood (5 in 10s)
+2026-11-16 21:17:48,10.0.0.1,-,MALFORMED,block,auto-block: malformed flood (5 in 10s)
+2026-11-16 21:17:48,10.0.0.1,-,-,block,auto-block: malformed flood (5 in 10s)
+2026-11-16 21:17:48,10.0.0.1,-,-,block,auto-block: malformed flood (5 in 10s)
+2026-11-16 21:17:48,10.0.0.1,-,-,block,auto-block: malformed flood (5 in 10s)
+2026-11-16 21:17:48,10.0.0.1,-,-,block,auto-block: malformed flood (5 in 10s)
+2026-11-16 21:17:54,10.0.0.3,web,index,permit,default
+2026-11-16 21:17:55,10.0.0.1,web,index,permit,default
+2026-11-16 21:18:05,10.0.0.1,-,-,error,client io: timed out
+2026-11-16 21:18:05,10.0.0.2,web,index,block,rule 1
+2026-11-16 21:18:06,10.0.0.3,web,index,permit,default
+2026-11-16 21:18:09,10.0.0.1,web,index,permit,default

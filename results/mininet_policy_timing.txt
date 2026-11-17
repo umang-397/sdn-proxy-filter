@@ -1,0 +1,3 @@
+PASS policy change timing has 40 measurements
+PASS policy is restored to ALLOW web
+RESULT: 2 passed, 0 failed

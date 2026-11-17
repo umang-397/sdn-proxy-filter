@@ -1,0 +1,17 @@
+PASS all direct bypass attempts fail
+PASS legitimate client works during bypass
+PASS malformed flood triggers an automatic block
+PASS flooding client is listed as auto-blocked
+PASS switch enforces the automatic block
+PASS c3 is unaffected during the flood
+PASS flooding client recovers after UNBLOCK
+PASS new requests are blocked after the mid-transfer policy change
+PASS mid-transfer BLOCK reaches the switch
+PASS service is allowed again after ALLOW
+PASS files drop is installed before the crash
+PASS request fails while the proxy is down
+PASS service works after proxy restart
+PASS STATS survived the proxy restart
+PASS dynamic drop is re-synced after proxy restart
+PASS ALLOW after restart removes the switch drop
+RESULT: 16 passed, 0 failed
