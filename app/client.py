@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
-"""Client: single request, or a small load generator (--bench).
-
---bench prints one human readable CSV line and one machine readable line:
-
-    BENCHJSON {"label": ..., "latencies": [...], "requests": N, ...}
-
-topology/topo.py parses the BENCHJSON line, so a benchmark never measures
-interpreter startup or truncated console output.
-"""
+"""Client: single request, or a small load generator (--bench)."""
 import argparse
 import json
-import math
 import socket
 import threading
 import time
@@ -52,27 +43,11 @@ def bench(host, port, line, conc, reps, timeout, label):
     [t.join() for t in ths]
     total = time.perf_counter() - t0
     lat.sort()
-    requests = len(lat) + errors[0]
     mean = sum(lat) / len(lat) * 1000 if lat else 0
-    p95 = (lat[max(math.ceil(len(lat) * 0.95) - 1, 0)] * 1000
-           if lat else 0)
+    p95 = lat[max(int(len(lat) * 0.95) - 1, 0)] * 1000 if lat else 0
     print("%s,%d,%d,%.2f,%.2f,%.1f,%.2f,%d" % (
         label, conc, reps, mean, p95, len(lat) / total,
         nbytes[0] * 8 / total / 1e6, errors[0]))
-    print("BENCHJSON " + json.dumps({
-        "label": label,
-        "concurrency": conc,
-        "reps": reps,
-        "requests": requests,
-        "ok": len(lat),
-        "errors": errors[0],
-        "bytes": nbytes[0],
-        "duration_s": total,
-        "mean_ms": mean,
-        "p95_ms": p95,
-        # Enough precision for aggregate statistics, small enough for stdout.
-        "latencies_ms": [round(x * 1000, 3) for x in lat],
-    }), flush=True)
 
 
 def main():

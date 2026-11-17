@@ -3,7 +3,6 @@
 import argparse
 import socket
 import threading
-import time
 
 LARGE = b"x" * 1_000_000
 
@@ -19,14 +18,7 @@ def handle(conn, name):
             buf += chunk
         line = buf.split(b"\n")[0].decode(errors="replace").strip()
         resource = line[5:] if line.startswith("GET /") else line
-        if "slow" in resource:
-            # 1 MB in 20 chunks over ~1 s: used by the "policy change in the
-            # middle of a transfer" hard scenario.
-            chunk = LARGE[:len(LARGE) // 20]
-            for _ in range(20):
-                conn.sendall(chunk)
-                time.sleep(0.05)
-        elif "large" in resource:
+        if "large" in resource:
             conn.sendall(LARGE)
         else:
             conn.sendall(("[%s] content of /%s\n" % (name, resource)).encode())

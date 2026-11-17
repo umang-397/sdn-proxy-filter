@@ -1,7 +1,5 @@
 __pycache__/
-*.py[cod]
-logs/
+*.pyc
 .DS_Store
-.venv/
-venv/
-.pytest_cache/
+logs/*
+!logs/.gitkeep
