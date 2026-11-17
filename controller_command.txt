@@ -1,0 +1,3 @@
+source ~/ryu-env/bin/activate
+cd ~/sdn-proxy-filter
+ryu-manager --ofp-tcp-listen-port 6653 controller/filter_controller.py
