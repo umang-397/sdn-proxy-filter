@@ -57,6 +57,10 @@ check("allowed request returns data", "content of /index" in req("GET web/index"
 check("keyword rule blocks", req("GET web/secret-plan").startswith("BLOCKED"))
 check("malformed request rejected", req("hello").startswith("ERROR malformed"))
 check("unknown service rejected", req("GET nope/x").startswith("ERROR"))
+check("BLOCK/ALLOW reject unknown service",
+      ctl("BLOCK nosuch").startswith("ERROR unknown service")
+      and ctl("ALLOW nosuch").startswith("ERROR unknown service")
+      and "nosuch" not in ctl("SHOW"))
 check("large response complete", len(req("GET web/large")) == 1_000_000)
 r = ctl("BLOCK files")
 check("BLOCK files accepted", r.startswith("OK"))

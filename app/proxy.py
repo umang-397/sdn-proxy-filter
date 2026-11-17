@@ -162,6 +162,8 @@ class Proxy:
             return json.dumps(self.stats)
         if cmd == "SHOW":
             return json.dumps({"default": self.policy.default, "rules": self.policy.rules})
+        if cmd in ("BLOCK", "ALLOW") and arg not in self.services:
+            return "ERROR unknown service"
         table = {"BLOCK": self.policy.block_service, "ALLOW": self.policy.allow_service,
                  "BLOCKCLIENT": self.policy.block_client, "ALLOWCLIENT": self.policy.allow_client}
         if cmd in table and arg:
