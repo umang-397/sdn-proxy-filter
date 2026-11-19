@@ -1,5 +1,5 @@
-# 2026-11-16 21:18:05
-ctl: OK policy active after 1.1 ms, controller: ['OK DROP installed']
+# 2026-11-18 01:13:12
+ctl: OK policy active after 1.2 ms, controller: ['OK DROP installed']
 
-client after change: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (386200 bytes, 10365.2 ms)
+client after change: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (386200 bytes, 10364.4 ms)
 

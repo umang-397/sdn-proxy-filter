@@ -1,8 +1,19 @@
 __pycache__/
-*.pyc
+*.py[cod]
 logs/*
 !logs/.gitkeep
 .DS_Store
+Thumbs.db
+Desktop.ini
 .venv/
 venv/
 .pytest_cache/
+
+# Local document lock files
+~$*
+
+# Viva and demo preparation
+/docs/viva.md
+/docs/CN_MINI_Demo_Script.*
+/docs/CN_MINI_Viva_Guide.*
+/docs/build_viva_guide.py
