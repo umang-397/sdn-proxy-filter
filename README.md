@@ -38,7 +38,7 @@ topology/   topo.py (Mininet, scenarios, benchmark)
 config/     network.json (addresses, auto-block, transport) + policy.json
 tests/      local tests, Mininet test driver, expected outputs, flood helper
 results/    plot.py, evidence, benchmark output, screenshots
-docs/       architecture, implementation, testing, results, viva notes
+docs/       architecture, implementation, testing, results
 logs/       runtime logs (git-ignored)
 ```
 
@@ -236,8 +236,8 @@ python3 tests/local_benchmark.py
 python3 results/plot.py --dir results/localhost --out results/localhost
 ```
 
-Use the Mininet numbers in the report and viva. `results/localhost/` is only a
-pipeline check and must not be presented as the performance result.
+Use the Mininet numbers for the project's reported performance.
+`results/localhost/` records a separate check of the benchmark pipeline.
 
 ## Request format and policy
 
@@ -258,11 +258,10 @@ drop.
 * `docs/implementation.md` - request flow, policy precedence, controller sync
 * `docs/testing.md` - local and Mininet tests, hard scenarios, reproduction
 * `docs/results.md` - what was measured and how to regenerate it
-* `docs/viva.md` - likely viva questions and answers
 * `results/` - CSV data, plots, `dump-flows` snapshots, proxy logs, screenshots
 
 ## Team
 
 * UMANG VIJAY: proxy/services/client (`app/`)
 * SHREYAS ARUN: controller + topology
-* SUMANTH MANJUNATH SHASTRI: tests/, results/, viva point of contact (STP studied for the report)
+* SUMANTH MANJUNATH SHASTRI: testing and results (`tests/`, `results/`)
